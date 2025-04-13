@@ -30,9 +30,6 @@ if (process.argv.length > 3) {
   password = process.argv[5];
 }
 
-var expectedNumberOfExports = 0;
-var actualNumberOfExports = 0;
-
 (async () => {
   const browser = await puppeteer.launch({ignoreHTTPSErrors: IGNORE_HTTPS_ERRORS, headless: HEADLESS});
   const page = await browser.newPage();
@@ -63,28 +60,12 @@ var actualNumberOfExports = 0;
       fs.writeFile(filename, content, 'base64', function (err) {
         if (err) throw err;
       });
-      
-      actualNumberOfExports++;
-
-      if (actualNumberOfExports === expectedNumberOfExports) {
-        console.log(" - Finished");
-        browser.close();
-      }
     });
   }
 
   // get the array of views
   const views = await page.evaluate(() => {
     return structurizr.scripting.getViews();
-  });
-
-  views.forEach(function(view) {
-    if (view.type === IMAGE_VIEW_TYPE) {
-      expectedNumberOfExports++; // diagram only
-    } else {
-      expectedNumberOfExports++; // diagram
-      expectedNumberOfExports++; // key
-    }
   });
 
   console.log(" - Starting export");
@@ -104,41 +85,34 @@ var actualNumberOfExports = 0;
       var svgForDiagram = await page.evaluate(() => {
         return structurizr.scripting.exportCurrentDiagramToSVG({ includeMetadata: true });
       });
-    
+
       console.log(" - " + diagramFilename);
       fs.writeFile(diagramFilename, svgForDiagram, function (err) {
         if (err) throw err;
       });
-      actualNumberOfExports++;
-    
+
       if (view.type !== IMAGE_VIEW_TYPE) {
         var svgForKey = await page.evaluate(() => {
           return structurizr.scripting.exportCurrentDiagramKeyToSVG();
         });
-      
+
         console.log(" - " + diagramKeyFilename);
         fs.writeFile(diagramKeyFilename, svgForKey, function (err) {
           if (err) throw err;
         });
-        actualNumberOfExports++;
       }
-
-      if (actualNumberOfExports === expectedNumberOfExports) {
-        console.log(" - Finished");
-        browser.close();
-      }    
     } else {
       const diagramFilename = view.key + '.png';
       const diagramKeyFilename = view.key + '-key.png'
 
-      page.evaluate((diagramFilename) => {
+      await page.evaluate((diagramFilename) => {
         structurizr.scripting.exportCurrentDiagramToPNG({ includeMetadata: true, crop: false }, function(png) {
           window.savePNG(png, diagramFilename);
         })
       }, diagramFilename);
 
       if (view.type !== IMAGE_VIEW_TYPE) {
-        page.evaluate((diagramKeyFilename) => {
+        await page.evaluate((diagramKeyFilename) => {
           structurizr.scripting.exportCurrentDiagramKeyToPNG(function(png) {
             window.savePNG(png, diagramKeyFilename);
           })
@@ -147,4 +121,6 @@ var actualNumberOfExports = 0;
     }
   }
 
+  console.log(" - Finished");
+  browser.close();
 })();
