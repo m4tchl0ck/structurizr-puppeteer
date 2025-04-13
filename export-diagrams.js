@@ -30,6 +30,52 @@ if (process.argv.length > 3) {
   password = process.argv[5];
 }
 
+async function exportDiagram(page, view, exportKeys, stepSuffix = '') {
+  await page.waitForFunction('structurizr.scripting.isDiagramRendered() === true');
+
+  if (format === SVG_FORMAT) {
+    const diagramFilename = view.key + stepSuffix + '.svg';
+    const diagramKeyFilename = view.key + stepSuffix + '-key.svg'
+
+    var svgForDiagram = await page.evaluate(() => {
+      return structurizr.scripting.exportCurrentDiagramToSVG({ includeMetadata: true });
+    });
+
+    console.log(" - " + diagramFilename);
+    fs.writeFile(diagramFilename, svgForDiagram, function (err) {
+      if (err) throw err;
+    });
+
+    if (exportKeys && view.type !== IMAGE_VIEW_TYPE) {
+      var svgForKey = await page.evaluate(() => {
+        return structurizr.scripting.exportCurrentDiagramKeyToSVG();
+      });
+
+      console.log(" - " + diagramKeyFilename);
+      fs.writeFile(diagramKeyFilename, svgForKey, function (err) {
+        if (err) throw err;
+      });
+    }
+  } else {
+    const diagramFilename = view.key + stepSuffix + '.png';
+    const diagramKeyFilename = view.key + stepSuffix + '-key.png'
+
+    await page.evaluate((diagramFilename) => {
+      structurizr.scripting.exportCurrentDiagramToPNG({ includeMetadata: true, crop: false }, function(png) {
+        window.savePNG(png, diagramFilename);
+      })
+    }, diagramFilename);
+
+    if (exportKeys && view.type !== IMAGE_VIEW_TYPE) {
+      await page.evaluate((diagramKeyFilename) => {
+        structurizr.scripting.exportCurrentDiagramKeyToPNG(function(png) {
+          window.savePNG(png, diagramKeyFilename);
+        })
+      }, diagramKeyFilename);
+    }
+  }
+}
+
 (async () => {
   const browser = await puppeteer.launch({ignoreHTTPSErrors: IGNORE_HTTPS_ERRORS, headless: HEADLESS});
   const page = await browser.newPage();
@@ -75,52 +121,6 @@ if (process.argv.length > 3) {
     await page.evaluate((view) => {
       structurizr.scripting.changeView(view.key);
     }, view);
-
-    async function exportDiagram(page, view, exportKeys, stepSuffix = '') {
-      await page.waitForFunction('structurizr.scripting.isDiagramRendered() === true');
-
-      if (format === SVG_FORMAT) {
-        const diagramFilename = view.key + stepSuffix + '.svg';
-        const diagramKeyFilename = view.key + stepSuffix + '-key.svg'
-
-        var svgForDiagram = await page.evaluate(() => {
-          return structurizr.scripting.exportCurrentDiagramToSVG({ includeMetadata: true });
-        });
-
-        console.log(" - " + diagramFilename);
-        fs.writeFile(diagramFilename, svgForDiagram, function (err) {
-          if (err) throw err;
-        });
-
-        if (exportKeys && view.type !== IMAGE_VIEW_TYPE) {
-          var svgForKey = await page.evaluate(() => {
-            return structurizr.scripting.exportCurrentDiagramKeyToSVG();
-          });
-
-          console.log(" - " + diagramKeyFilename);
-          fs.writeFile(diagramKeyFilename, svgForKey, function (err) {
-            if (err) throw err;
-          });
-        }
-      } else {
-        const diagramFilename = view.key + stepSuffix + '.png';
-        const diagramKeyFilename = view.key + stepSuffix + '-key.png'
-
-        await page.evaluate((diagramFilename) => {
-          structurizr.scripting.exportCurrentDiagramToPNG({ includeMetadata: true, crop: false }, function(png) {
-            window.savePNG(png, diagramFilename);
-          })
-        }, diagramFilename);
-
-        if (exportKeys && view.type !== IMAGE_VIEW_TYPE) {
-          await page.evaluate((diagramKeyFilename) => {
-            structurizr.scripting.exportCurrentDiagramKeyToPNG(function(png) {
-              window.savePNG(png, diagramKeyFilename);
-            })
-          }, diagramKeyFilename);
-        }
-      }
-    }
 
     await exportDiagram(page, view, true, undefined);
 
